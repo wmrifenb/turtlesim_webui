@@ -2,6 +2,7 @@ from flask_socketio import SocketIO
 from flask import Flask, render_template
 from threading import Thread, Event
 from random import random
+import roslibpy
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -15,23 +16,25 @@ thread = Thread()
 thread_stop_event = Event()
 
 def randomNumberGenerator():
-    """
-    Generate a random number every 1 second and emit to a socketio instance (broadcast)
-    Ideally to be run in a separate thread?
-    """
-    #infinite loop of magical random numbers
-    print("Making random numbers")
-    while not thread_stop_event.isSet():
-        number = round(random()*10, 3)
-        print(number)
-        socketio.emit('newnumber', {'number': number}, namespace='/test')
-        socketio.sleep(0.1)
+    client = roslibpy.Ros(host='localhost', port=9090)
+    client.run()
+    listener = roslibpy.Topic(client, '/turtle1/pose', 'turtlesim/Pose')
+    listener.subscribe(lambda message: socketio.emit('newnumber', {'number': message['x']}, namespace='/test'))
+    try:
+        while not thread_stop_event.isSet():
+            pass
+    finally:
+        client.terminate()
 
 
 @app.route('/')
 def index():
     #only by sending this page first will the client be connected to the socketio instance
     return render_template('index.html')
+
+@app.route('/starter')
+def starter():
+    return render_template('starter.html')
 
 @socketio.on('connect', namespace='/test')
 def test_connect():
